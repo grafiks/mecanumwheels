@@ -1,0 +1,6 @@
+# Ignore Java target directory
+target/
+
+# Ignore Python compiled files
+*.pyc
+__pycache__/
