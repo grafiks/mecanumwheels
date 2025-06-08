@@ -1,6 +1,7 @@
 package com.picow;
 
 import java.io.IOException;
+import javax.swing.JFrame;
 
 public class InputControllerManager {
     private final MotorClient motorClient;
@@ -8,12 +9,12 @@ public class InputControllerManager {
     private final GamepadListener gamepadListener;
     private boolean hasGamepad = false;
 
-    public InputControllerManager(MotorClient motorClient) {
+    public InputControllerManager(JFrame frame, MotorClient motorClient) {
         this.motorClient = motorClient;
-        this.keyboardListener = new KeyboardListener(motorClient);
-        
+        this.keyboardListener = new KeyboardListener(frame, motorClient);
         this.hasGamepad = false;
         this.gamepadListener = null;
+     
         // Check if gamepad is available
         /* 
         Controller[] controllers = ControllerEnvironment.getDefaultEnvironment().getControllers();

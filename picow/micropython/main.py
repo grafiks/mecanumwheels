@@ -4,12 +4,13 @@ import struct
 import time
 from machine import Pin, PWM, I2C
 import json
+import uasyncio as asyncio
 
 # WiFi credentials
 WIFI_SSID = "irene-robot-wifi"
 WIFI_PASSWORD = '12345678'
-SHARED_WIFI_PASSWORD = "your_wifi_password"
-SHARED_WIFI_SSID = "your_wifi"
+SHARED_WIFI_PASSWORD = ""
+SHARED_WIFI_SSID = ""
 
 # Server configuration
 SERVER_PORT = 8080
@@ -17,6 +18,12 @@ MAX_CONNECTIONS = 10
 
 MODE_PIN = Pin(15, Pin.IN, Pin.PULL_DOWN)  # or PULL_UP, depending on your jumper
 USE_AP_MODE = MODE_PIN.value() == 1  # HIGH = AP mode; LOW = STA mode
+
+serverLed=Pin(14, Pin.OUT)
+serverLed.off()
+
+errorLed = Pin(13, Pin.OUT)
+errorLed.off()
 
 # IMU0: at I2C_SCL_PIN = 1, I2C_SDA_PIN = 0, address = 0x68
 i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq =400_000)
@@ -189,6 +196,7 @@ def start_server(ip_address):
     server_socket.bind((ip_address, SERVER_PORT))
     server_socket.listen(MAX_CONNECTIONS)
     print(f'Server started on {ip_address}:{SERVER_PORT}')
+    serverLed.on()
     
     def clamp(value, min_value, max_value):
         return max(min_value, min(value, max_value))
@@ -244,29 +252,48 @@ def start_server(ip_address):
 
                 except Exception as e:
                     response = {'status': 'error', 'message': 'Command processing failed: ' + str(e)}
+                    asyncio.create_task(blink_led_async(errorLed))
 
                 try:
                     print(response)
                     client_socket.send(json.dumps(response).encode())
                 except Exception as e:
                     print(f'Failed to send response: {e}')
+                    asyncio.create_task(blink_led_async(errorLed, 4, 0.5))
                     break
 
         except Exception as e:
             print(f'Connection error with {client_address}: {e}')
+            
         finally:
             print(f'Client {client_address} disconnected')
             client_socket.close()
             pwm_motors.stop_all()
+            asyncio.create_task(blink_led_async(serverLed, 3, interval=0.5))
 
+    async def blink_led_async(led, times=6, interval=0.25):
+        state = led.value()
+        for _ in range(times):
+            led.off()
+            await asyncio.sleep(interval)
+            led.on()
+            await asyncio.sleep(interval)
+        if state == 1:
+            led.on()
+        else:
+            led.off()
+        
     while True:
         try:
             client_socket, client_address = server_socket.accept()
+            asyncio.create_task(blink_led_async(serverLed))
             handle_client(client_socket, client_address)
         except Exception as e:
             print('Error accepting client connection:', e)
             pwm_motors.stop_all()
+            errorLed.on()
             time.sleep(1)
+            errorLed.off()
 
 def main(use_AP=True):
     if use_AP:
