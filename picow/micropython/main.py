@@ -10,8 +10,8 @@ import _thread
 # WiFi credentials
 WIFI_SSID = "irene-robot-wifi"
 WIFI_PASSWORD = '12345678'
-SHARED_WIFI_PASSWORD = "YourWifiPassword"
-SHARED_WIFI_SSID = "YourWifiSSID"
+SHARED_WIFI_PASSWORD = ""
+SHARED_WIFI_SSID = ""
 
 # Server configuration
 TCP_PORT = 8080
