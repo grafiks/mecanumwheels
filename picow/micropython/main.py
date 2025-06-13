@@ -1,29 +1,37 @@
+import json
 import network
 import socket
 import struct
 import time
-from machine import Pin, PWM, I2C
-import json
 import uasyncio as asyncio
+from machine import Pin, PWM, I2C
+import _thread
 
 # WiFi credentials
 WIFI_SSID = "irene-robot-wifi"
 WIFI_PASSWORD = '12345678'
-SHARED_WIFI_PASSWORD = ""
-SHARED_WIFI_SSID = ""
+SHARED_WIFI_PASSWORD = "YourWifiPassword"
+SHARED_WIFI_SSID = "YourWifiSSID"
 
 # Server configuration
-SERVER_PORT = 8080
+TCP_PORT = 8080
+UDP_PORT = 8081
 MAX_CONNECTIONS = 10
 
-MODE_PIN = Pin(15, Pin.IN, Pin.PULL_DOWN)  # or PULL_UP, depending on your jumper
+MODE_PIN = Pin(13, Pin.IN, Pin.PULL_DOWN)  # or PULL_UP, depending on your jumper
 USE_AP_MODE = MODE_PIN.value() == 1  # HIGH = AP mode; LOW = STA mode
 
-serverLed=Pin(14, Pin.OUT)
-serverLed.off()
+main_led=Pin("LED", Pin.OUT)
+main_led.on()
 
-errorLed = Pin(13, Pin.OUT)
-errorLed.off()
+tcpLed=Pin(14, Pin.OUT)
+tcpLed.off()
+udpLed=Pin(15, Pin.OUT)
+udpLed.off()
+tcpErrorLed = Pin(16, Pin.OUT)
+tcpErrorLed.off()
+udpErrorLed = Pin(17, Pin.OUT)
+udpErrorLed.off()
 
 # IMU0: at I2C_SCL_PIN = 1, I2C_SDA_PIN = 0, address = 0x68
 i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq =400_000)
@@ -76,41 +84,24 @@ class MPU6050(IMU):
 
 #imu0 = MPU6050(i2c, 0x68) # or 0x69, no other values for MPU6050. If AD0 Pin is GND, then 0x68, 0x69 else if AD0 Pin is VCC;
 
-class IMUController:
-    def __init__(self, imus: list[IMU]):
-        self.imus = imus
-
-    def read_imu_scaled(self, id: int):
-        return self.imus[id].read_scaled()
-
-    def read_imu_raw(self, id: int):
-        return self.imus[id].read_raw()
-    
-    def read_imu(self, id: int, data_type: str):
-        if data_type == "scaled":
-            return self.read_imu_scaled(id)
-        elif data_type == "raw":
-            return self.read_imu_raw(id)
-        else:
-            raise ValueError("Invalid data type")
-
 class Motor:
-    def __init__(self, in1_pin, in2_pin, pwm_pin):
+    def __init__(self, pwm_pin, in1_pin, in2_pin):
         self.in1 = Pin(in1_pin, Pin.OUT)
         self.in2 = Pin(in2_pin, Pin.OUT)
         self.pwm = PWM(Pin(pwm_pin))
         self.pwm.freq(1000)
         self.pwm.duty_u16(0)
 
-    def set_speed(self, speed_percent):
-        # speed_percent: -100 (full reverse) to +100 (full forward)
-        speed = abs(speed_percent)
-        duty = int((speed / 100.0) * 65535)
+    def set_power(self, power:int):
+        def clamp(value):
+            return max(-65535, min(value, 65535))
+        power = clamp(power)
+        duty = abs(power)
         
-        if speed_percent > 0:
+        if power > 0:
             self.in1.high()
             self.in2.low()
-        elif speed_percent < 0:
+        elif power < 0:
             self.in1.low()
             self.in2.high()
         else:
@@ -120,30 +111,34 @@ class Motor:
         self.pwm.duty_u16(duty)
 
     def stop(self):
-        self.set_speed(0)
+        self.set_power(0)
 
 # Setup for 4 motors
-# Motor 0: IN1 = GP2, IN2 = GP3, EN = GP16
-# Motor 1: IN1 = GP4, IN2 = GP5, EN = GP17
-# Motor 2: IN1 = GP6, IN2 = GP7, EN = GP18
-# Motor 3: IN1 = GP8, IN2 = GP9, EN = GP19
-motor0 = Motor(2, 3, 16)
-motor1 = Motor(4, 5, 17)
-motor2 = Motor(6, 7, 18)
-motor3 = Motor(8, 9, 19)
+#  EN(PWM)	IN1	    IN2
+#0	GP2	    GP3	    GP4
+#1	GP6	    GP7	    GP8
+#2	GP10	GP11	GP12
+#3	GP18	GP19	GP20
+motor0 = Motor(2, 3, 4)
+motor1 = Motor(6, 7, 8)
+motor2 = Motor(10, 11, 12)
+motor3 = Motor(18, 19, 20)
 
 class MotorController:
-    def __init__(self, motors):
-        self.motors = motors  # List of Motor instances
+    def __init__(self, motors:list[Motor]):
+        self.motors:list[Motor] = motors  # List of Motor instances
     
-    def set_motor_speed(self, motor_id:int, speed_spercent:float): # -100.0 to 100.0
+    def set_power(self, motor_id:int, power:int): 
         if 0 <= motor_id <= len(self.motors):
-            self.motors[motor_id].set_speed(speed_spercent)
+            self.motors[motor_id].set_power(power)
     
+    def set_powers(self, powers):
+        for idx, power in enumerate(powers):
+            self.set_power(idx, power)
+
     def stop_all(self):
         for motor in self.motors:
             motor.stop()
-
 
 def setup_wifi_ap():
     """Setup WiFi in AP mode"""
@@ -182,131 +177,191 @@ def connect_wifi():
         
     return wlan
 
-def start_server(ip_address):
-    """Start TCP server and handle client connections"""
-    # Initialize both motor controllers
-    pwm_motors = MotorController([motor0, motor1, motor2, motor3])
-    imus = None # IMUController([imu0])
-        
-    # Create server socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
-    # Bind and listen
-    server_socket.bind((ip_address, SERVER_PORT))
-    server_socket.listen(MAX_CONNECTIONS)
-    print(f'Server started on {ip_address}:{SERVER_PORT}')
-    serverLed.on()
-    
-    def clamp(value, min_value, max_value):
-        return max(min_value, min(value, max_value))
-    
-    def handle_client(client_socket, client_address):
-        print(f'Client connected from {client_address}')
-        try:
-            while True:
-                data = client_socket.recv(1024)
-                if not data:
-                    break
 
-                try:
-                    data = data.decode()
-                    print(data)
-                    command = json.loads(data)
-                except ValueError as e:
-                    error_response = {'status': 'error', 'message': 'Invalid JSON: ' + str(e)}
-                    client_socket.send(json.dumps(error_response).encode())
+class TCPServer:
+    def __init__(self, ip_address, port):
+        self.ip_address = ip_address
+        self.port = port
+        self.socket = None
+        self.client_socket = None
+        self.client_address = None
+        self.running = False
+
+    def start(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind((self.ip_address, self.port))
+        self.socket.listen(1)  # Only one client
+        print(f'TCP server started on {self.ip_address}:{self.port}')
+        tcpLed.on()
+        self.running = True
+
+    def stop(self):
+        self.running = False
+        if self.client_socket:
+            self.client_socket.close()
+        if self.socket:
+            self.socket.close()
+        tcpLed.off()
+
+    def handle_client(self, imu, pwm_motors):
+        buffer = ""
+        while self.running:
+            try:
+                # If no client, wait for one
+                if not self.client_socket:
+                    print("Waiting for TCP client...")
+                    pwm_motors.stop_all()
+                    self.client_socket, self.client_address = self.socket.accept()
+                    print(f'TCP client connected from {self.client_address}')
+                    tcpLed.on()
+                    buffer = ""  # Clear buffer for new client
+
+                # Handle client
+                data = self.client_socket.recv(1024)
+                if not data:  # Client disconnected
+                    print('TCP client disconnected')
+                    self.client_socket.close()
+                    self.client_socket = None
+                    self.client_address = None
+                    tcpLed.off()
                     continue
 
-                # Handle quit command
-                if isinstance(command, dict) and command.get("command") == "quit":
-                    print("Received quit command. Stopping motors and closing connection.")
-                    pwm_motors.stop_all()
-                    break
+                buffer += data.decode()
+                while '\n' in buffer:
+                    line, buffer = buffer.split('\n', 1)
+                    if not line.strip():
+                        continue
 
-                response = {'status': 'succeeded', 'actions': [], 'sensors': []}
+                    try:
+                        command = json.loads(line)
+                        if command.get('type') == 'imu':
+                            imu_data = imu.read_scaled() if imu else {
+                                "accel_g": (0, 0, 0),
+                                "gyro_dps": (0, 0, 0),
+                                "temp_c": 0
+                            }
+                            command['data'] = imu_data
+                            command['error'] = None
+                        else:
+                            command['error'] = "Unknown command type"
+                            command['data'] = None
+
+                        self.client_socket.sendall((json.dumps(command) + '\n').encode())
+
+                    except Exception as e:
+                        error_response = {'type': 'error', 'data': str(e)}
+                        self.client_socket.sendall((json.dumps(error_response) + '\n').encode())
+                        tcpErrorLed.on()
+                        time.sleep(0.1)
+                        tcpErrorLed.off()
+
+            except Exception as e:
+                print(f'TCP connection error: {e}')
+                if self.client_socket:
+                    self.client_socket.close()
+                self.client_socket = None
+                self.client_address = None
+                tcpLed.off()
+                tcpErrorLed.on()
+                time.sleep(0.1)
+                tcpErrorLed.off()
+
+class UDPServer:
+    def __init__(self, ip_address, port):
+        self.ip_address = ip_address
+        self.port = port
+        self.socket = None
+        self.client_address = None
+        self.running = False
+
+    def start(self):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind((self.ip_address, self.port))
+        print(f'UDP server started on {self.ip_address}:{self.port}')
+        udpLed.on()
+        self.running = True
+
+    def stop(self):
+        self.running = False
+        if self.socket:
+            self.socket.close()
+        udpLed.off()
+
+    def handle_client(self, pwm_motors):
+        while self.running:
+            try:
+                data, addr = self.socket.recvfrom(1024)
+                if not data:
+                    continue
+
+                # Update client address if it changed
+                if self.client_address != addr:
+                    if self.client_address:
+                        print(f'UDP client changed from {self.client_address} to {addr}')
+                    else:
+                        print(f'UDP client connected from {addr}')
+                    self.client_address = addr
+                    udpLed.on()
 
                 try:
-                    if 'actions' in command:
-                        for action in command.get('actions', []):
-                            if action.get('type') == 'motor':
-                                motor_id = action.get('id')
-                                speed = action.get('speed')
-                                if motor_id in [0, 1, 2, 3]:
-                                    speed = clamp(speed, -100, 100)
-                                    pwm_motors.set_motor_speed(motor_id, speed)
-                                    response['actions'].append(action)
-
-                    if 'sensors' in command:
-                        for sensor in command.get('sensors', []):
-                            if sensor.get('type') == 'imu':
-                                imu_id = sensor.get('id')
-                                data_type = sensor.get('data_type')
-                                try:
-                                    imu_data = imus.read_imu(imu_id, data_type)
-                                    sensor['data'] = imu_data
-                                    response['sensors'].append(sensor)
-                                except Exception as e:
-                                    sensor['error'] = f"Failed to read IMU: {e}"
-                                    response['sensors'].append(sensor)
-
+                    command = json.loads(data)
+                    if command.get('type') == 'motor':
+                        pwms = command.get('pwm')
+                        pwm_motors.set_powers(pwms)
                 except Exception as e:
-                    response = {'status': 'error', 'message': 'Command processing failed: ' + str(e)}
-                    asyncio.create_task(blink_led_async(errorLed))
+                    print('Invalid UDP command:', e)
+                    udpErrorLed.on()
+                    time.sleep(0.1)
+                    udpErrorLed.off()
 
-                try:
-                    print(response)
-                    client_socket.send(json.dumps(response).encode())
-                except Exception as e:
-                    print(f'Failed to send response: {e}')
-                    asyncio.create_task(blink_led_async(errorLed, 4, 0.5))
-                    break
+            except Exception as e:
+                print(f'UDP connection error: {e}')
+                self.client_address = None
+                udpLed.off()
+                udpErrorLed.on()
+                time.sleep(0.1)
+                udpErrorLed.off()
 
-        except Exception as e:
-            print(f'Connection error with {client_address}: {e}')
-            
-        finally:
-            print(f'Client {client_address} disconnected')
-            client_socket.close()
-            pwm_motors.stop_all()
-            asyncio.create_task(blink_led_async(serverLed, 3, interval=0.5))
+def start_servers(ip_address):
+    """Start both TCP and UDP servers"""
+    # Initialize controllers
+    pwm_motors = MotorController([motor0, motor1, motor2, motor3])
+    imu = None  # MPU6050()
+    
+    # Create servers
+    tcp_server = TCPServer(ip_address, TCP_PORT)
+    udp_server = UDPServer(ip_address, UDP_PORT)
+    
+    # Start servers
+    tcp_server.start()
+    udp_server.start()
 
-    async def blink_led_async(led, times=6, interval=0.25):
-        state = led.value()
-        for _ in range(times):
-            led.off()
-            await asyncio.sleep(interval)
-            led.on()
-            await asyncio.sleep(interval)
-        if state == 1:
-            led.on()
-        else:
-            led.off()
-        
-    while True:
-        try:
-            client_socket, client_address = server_socket.accept()
-            asyncio.create_task(blink_led_async(serverLed))
-            handle_client(client_socket, client_address)
-        except Exception as e:
-            print('Error accepting client connection:', e)
-            pwm_motors.stop_all()
-            errorLed.on()
-            time.sleep(1)
-            errorLed.off()
+    try:
+
+        # Start UDP server in a separate thread
+        _thread.start_new_thread(udp_server.handle_client, (pwm_motors,))
+        # Run TCP server in main thread
+        tcp_server.handle_client(imu, pwm_motors)
+    except KeyboardInterrupt:
+        print("Shutting down servers...")
+    finally:
+        tcp_server.stop()
+        udp_server.stop()
+        pwm_motors.stop_all()
 
 def main(use_AP=True):
     if use_AP:
-    # Get IP address
         ap = setup_wifi_ap()
         ip_address = ap.ifconfig()[0]
     else:
         wlan = connect_wifi()
         ip_address = wlan.ifconfig()[0]
         
-    start_server(ip_address)
-    print('Start server at IP ' + ip_address)
+    start_servers(ip_address)
+    print('Servers stopped')
 
 if __name__ == '__main__':
     main(USE_AP_MODE) 
+
 
