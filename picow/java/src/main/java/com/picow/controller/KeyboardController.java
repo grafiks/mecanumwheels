@@ -1,11 +1,18 @@
 package com.picow.controller;
 
+import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JRootPane;
+import javax.swing.KeyStroke;
 
 import com.picow.model.MotorCommandBus;
 import com.picow.model.RobotModel;
@@ -13,7 +20,8 @@ import com.picow.model.RobotModel;
 
 public class KeyboardController extends ControllerBase {
     private static final int MOTOR_FULL_SPEED = 100;
-    private static final int SPEED_INCREMENT = 10;
+    private static final int MOTOR_LOW_SPEED=40;
+    private static final int SPEED_INCREMENT = 5;
 
     // Key mappings
     private static final int FORWARD = KeyEvent.VK_W;
@@ -42,7 +50,7 @@ public class KeyboardController extends ControllerBase {
         this.encodedPowers = encodeMotorPowerBits(0, 0, 0, 0);
     }
 
-    protected void setupListeners() {
+    protected void setupListenersOld() {
         // Add key listener to main window
         mainWindow.addKeyListener(new KeyListener() {
             @Override
@@ -62,7 +70,7 @@ public class KeyboardController extends ControllerBase {
                         speed = Math.min(speed + SPEED_INCREMENT, MOTOR_FULL_SPEED);
                         break;
                     case SPEED_DOWN:
-                        speed = Math.max(speed - SPEED_INCREMENT, 0);
+                        speed = Math.max(speed - SPEED_INCREMENT, MOTOR_LOW_SPEED);
                         break;
                     case STOP_ALL:
                         speed = 0;
@@ -82,6 +90,71 @@ public class KeyboardController extends ControllerBase {
         });
     }
 
+    protected void setupListeners() {
+        JRootPane rootPane = mainWindow.getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = rootPane.getActionMap();
+    
+        // Bindings for key pressed
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed W"), FORWARD, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed S"), BACKWARD, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed A"), LEFT, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed D"), RIGHT, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed LEFT"), ROTATE_LEFT, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed RIGHT"), ROTATE_RIGHT, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed UP"), SPEED_UP, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed DOWN"), SPEED_DOWN, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed 0"), STOP_ALL, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed 1"), MOTOR_0, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed 2"), MOTOR_1, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed 3"), MOTOR_2, true);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("pressed 4"), MOTOR_3, true);
+    
+        // Bindings for key released
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released W"), FORWARD, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released S"), BACKWARD, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released A"), LEFT, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released D"), RIGHT, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released LEFT"), ROTATE_LEFT, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released RIGHT"), ROTATE_RIGHT, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released 0"), STOP_ALL, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released 1"), MOTOR_0, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released 2"), MOTOR_1, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released 3"), MOTOR_2, false);
+        bindKey(inputMap, actionMap, KeyStroke.getKeyStroke("released 4"), MOTOR_3, false);
+    }
+
+    private void bindKey(InputMap inputMap, ActionMap actionMap, KeyStroke keyStroke, int keyCode, boolean isPressed) {
+        String actionKey = (isPressed ? "pressed_" : "released_") + keyCode;
+    
+        inputMap.put(keyStroke, actionKey);
+        actionMap.put(actionKey, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!running.get()) return;
+    
+                keyStates.put(keyCode, isPressed);
+    
+                if (isPressed) {
+                    switch (keyCode) {
+                        case SPEED_UP:
+                            speed = Math.min(speed + SPEED_INCREMENT, MOTOR_FULL_SPEED);
+                            break;
+                        case SPEED_DOWN:
+                            speed = Math.max(speed - SPEED_INCREMENT, MOTOR_LOW_SPEED);
+                            break;
+                        case STOP_ALL:
+                            speed = 0;
+                            break;
+                    }
+                }
+    
+                updateMotors();
+            }
+        });
+    }
+    
+    
     private void updateMotors() {
         if (!running.get()) return;
 

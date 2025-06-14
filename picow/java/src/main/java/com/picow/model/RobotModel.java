@@ -7,9 +7,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.gson.Gson;
+import com.picow.RobotLogger;
 import com.picow.model.commands.MotorCommand;
 import com.picow.model.commands.SensorPullCommand;
 import com.picow.model.commands.SensorPullCommandJsonResponse;
+import com.picow.model.sensors.Imu;
 import com.picow.network.TcpTransport;
 import com.picow.network.UdpTransport;
 
@@ -96,7 +98,7 @@ public class RobotModel {
             SensorPullCommand command = new SensorPullCommand("imu", 0, ts);
             String cmd = gson.toJson(command);
             tcp.send(cmd);
-            System.out.println(cmd);
+            RobotLogger.logSensorPullCommand(command);
         } catch (Exception e) {
             System.err.println("Error polling sensors: " + e.getMessage());
         }
@@ -110,7 +112,7 @@ public class RobotModel {
             MotorCommand command = commandBus.getHighestPriorityCommand(ts);
             String cmd = gson.toJson(command);
             udp.send(cmd);
-            System.out.println(cmd);
+            RobotLogger.logMotorCommand(cmd);
         } catch (Exception e) {
             System.err.println("Error sending motor commands: " + e.getMessage());
         }
@@ -142,9 +144,9 @@ public class RobotModel {
             SensorPullCommandJsonResponse response = gson.fromJson(data, SensorPullCommandJsonResponse.class);
             if (response.type.equals("imu")) {
                 // Process sensor data and update IMU
-                imu.set(gson.fromJson(response.data, Imu.Data.class));
-                String imuDataStr = gson.toJson(response.data);
-                System.out.println(imuDataStr);
+                if (response.error == null)
+                    imu.set(gson.fromJson(response.data, Imu.Data.class));
+                RobotLogger.logTelemetry(response);
             }
         } catch (Exception e) {
             System.err.println("Error processing sensor data: " + e.getMessage());
@@ -156,7 +158,7 @@ public class RobotModel {
     }
 
     // powers range from -100 to 100
-    public void setMotorPowers(double[] powers, String setter) {
+    public void setMotorPowers(double[] powers, String controller) {
         if (powers == null || powers.length != numberOfMotors) {
             throw new IllegalArgumentException("powers setting is null or mismatching motor numbers.");
         }
@@ -167,7 +169,7 @@ public class RobotModel {
             pwm[i] = Math.min(65535, Math.max(-65535, (int)(655.35 * powers[i])));
         }
 
-        MotorCommand command = new MotorCommand(pwm, System.currentTimeMillis() / 1000);
-        commandBus.updateCommand(setter, command);
+        MotorCommand command = new MotorCommand(pwm, System.currentTimeMillis());
+        commandBus.updateCommand(controller, command);
     }
 }

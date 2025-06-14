@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TcpTransport {
     private final String host;
     private final int port;
-    private int maxRetries = 5;
+    private final int maxRetries = 5;
     private final int retryDelayMillis = 200;
     private Socket socket;
     private PrintWriter out;

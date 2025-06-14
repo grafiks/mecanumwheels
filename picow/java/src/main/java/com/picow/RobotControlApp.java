@@ -13,25 +13,25 @@ public class RobotControlApp {
 
     public static void main(String[] args) {
         try {
+
+            // Create a view - logging is initialized in MainWindow constructor
+            MainWindow mainWindow = new MainWindow();
+            
             // Create a model
             RobotModel robot = RobotFactory.CreateRobot(SERVER_IP, TCP_PORT, UDP_PORT);
-            if (robot == null)
-            {
-                System.err.println("Failed to initalize robot");
+            if (robot == null) {
+                System.err.println("Failed to initialize robot");
                 System.exit(-1);
             }
 
-            // Create a view
-            MainWindow mainWindow = new MainWindow();
             // Create controllers
             KeyboardController keyboardController = new KeyboardController(robot, mainWindow, 20);
-               // Set up window closing handler
             
-
-               mainWindow.setFocusable(true);  // Ensure window can receive focus
-               mainWindow.requestFocusInWindow();  // Request focus
-               // Show window
-               mainWindow.setVisible(true);
+            // Set up window closing handler
+            mainWindow.setFocusable(true);  // Ensure window can receive focus
+            mainWindow.requestFocusInWindow();  // Request focus
+            // Show window
+            mainWindow.setVisible(true);
                
             mainWindow.setWindowClosingHandler(e -> {
                 keyboardController.stop();
@@ -52,4 +52,6 @@ public class RobotControlApp {
             e.printStackTrace();
         }
     }
+
+    
 }

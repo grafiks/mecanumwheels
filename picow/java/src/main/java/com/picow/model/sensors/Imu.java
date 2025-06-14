@@ -1,5 +1,4 @@
-package com.picow.model;
-import java.util.concurrent.locks.ReentrantLock;
+package com.picow.model.sensors;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -24,32 +23,17 @@ public class Imu {
         public double getTemp() { return temp; }
     }
 
-    private final ReentrantLock lock = new ReentrantLock();
-    private Data data;
+    private volatile Data data;
 
     public Imu() {
         data = new Data(new double[]{0, 0, 0}, new double[]{0, 0, 0}, 0);
     }
 
     public Data read() {
-        lock.lock();
-        try {
-            return data;
-        } finally {
-            lock.unlock();
-        }
+        return data;
     }
 
     public void set(Data newData) {
-        try {
-            lock.lock();
-            try {
-                data = newData;
-            } finally {
-                lock.unlock();
-            }
-        } catch (Exception e) {
-            System.err.println("Error updating IMU data: " + e.getMessage());
-        }
+        data = newData;
     }
 }

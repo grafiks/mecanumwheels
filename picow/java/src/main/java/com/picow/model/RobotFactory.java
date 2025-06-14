@@ -2,10 +2,14 @@ package com.picow.model;
 
 import java.io.IOException;
 import java.net.InetAddress;
+
+import com.picow.model.sensors.Imu;
 import com.picow.network.TcpTransport;
 import com.picow.network.UdpTransport;
 
 public class RobotFactory {
+    
+
     public static RobotModel CreateRobot(String serverIp, int tcpPort, int udpPort){
         Imu imu = new Imu();
         System.out.println("Conecting to " + serverIp);
@@ -31,7 +35,7 @@ public class RobotFactory {
                     tcp.disconnect();
                 if (udp != null && udp.isConnected())
                     udp.disconnect();
-            }catch (IOException ioe){
+            } catch (IOException ioe){
                 ioe.printStackTrace();
             } finally {
                 e.printStackTrace();

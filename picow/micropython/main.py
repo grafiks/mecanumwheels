@@ -1,11 +1,10 @@
 import json
-import network
 import socket
 import struct
 import time
-import uasyncio as asyncio
+import _thread # Async io not supported very well in micro python
+import network
 from machine import Pin, PWM, I2C
-import _thread
 
 # WiFi credentials
 WIFI_SSID = "irene-robot-wifi"
@@ -18,21 +17,24 @@ TCP_PORT = 8080
 UDP_PORT = 8081
 MAX_CONNECTIONS = 10
 
-MODE_PIN = Pin(13, Pin.IN, Pin.PULL_DOWN)  # or PULL_UP, depending on your jumper
+MODE_PIN = Pin(15, Pin.IN, Pin.PULL_DOWN)  # or PULL_UP, depending on your jumper
 USE_AP_MODE = MODE_PIN.value() == 1  # HIGH = AP mode; LOW = STA mode
 
 main_led=Pin("LED", Pin.OUT)
 main_led.on()
+tcp_error_led = Pin(16, Pin.OUT)
+tcp_error_led.off()
+udp_error_led = Pin(17, Pin.OUT)
+udp_error_led.off()
 
-tcpLed=Pin(14, Pin.OUT)
-tcpLed.off()
-udpLed=Pin(15, Pin.OUT)
-udpLed.off()
-tcpErrorLed = Pin(16, Pin.OUT)
-tcpErrorLed.off()
-udpErrorLed = Pin(17, Pin.OUT)
-udpErrorLed.off()
-
+def blink_led(led, interval=0.1, repeat=3):
+    state = led.value()
+    for i in range(repeat):
+        led.value(1-state)
+        time.sleep(interval)
+        led.value(state)
+        time.sleep(interval)
+    
 # IMU0: at I2C_SCL_PIN = 1, I2C_SDA_PIN = 0, address = 0x68
 i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq =400_000)
 
@@ -193,8 +195,8 @@ class TCPServer:
         self.socket.bind((self.ip_address, self.port))
         self.socket.listen(1)  # Only one client
         print(f'TCP server started on {self.ip_address}:{self.port}')
-        tcpLed.on()
         self.running = True
+        blink_led(main_led)
 
     def stop(self):
         self.running = False
@@ -202,7 +204,6 @@ class TCPServer:
             self.client_socket.close()
         if self.socket:
             self.socket.close()
-        tcpLed.off()
 
     def handle_client(self, imu, pwm_motors):
         buffer = ""
@@ -214,7 +215,6 @@ class TCPServer:
                     pwm_motors.stop_all()
                     self.client_socket, self.client_address = self.socket.accept()
                     print(f'TCP client connected from {self.client_address}')
-                    tcpLed.on()
                     buffer = ""  # Clear buffer for new client
 
                 # Handle client
@@ -224,7 +224,6 @@ class TCPServer:
                     self.client_socket.close()
                     self.client_socket = None
                     self.client_address = None
-                    tcpLed.off()
                     continue
 
                 buffer += data.decode()
@@ -252,9 +251,7 @@ class TCPServer:
                     except Exception as e:
                         error_response = {'type': 'error', 'data': str(e)}
                         self.client_socket.sendall((json.dumps(error_response) + '\n').encode())
-                        tcpErrorLed.on()
-                        time.sleep(0.1)
-                        tcpErrorLed.off()
+                        blink_led(tcp_error_led)
 
             except Exception as e:
                 print(f'TCP connection error: {e}')
@@ -262,10 +259,7 @@ class TCPServer:
                     self.client_socket.close()
                 self.client_socket = None
                 self.client_address = None
-                tcpLed.off()
-                tcpErrorLed.on()
-                time.sleep(0.1)
-                tcpErrorLed.off()
+                blink_led(tcp_error_led)
 
 class UDPServer:
     def __init__(self, ip_address, port):
@@ -279,14 +273,13 @@ class UDPServer:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.bind((self.ip_address, self.port))
         print(f'UDP server started on {self.ip_address}:{self.port}')
-        udpLed.on()
         self.running = True
+        blink_led(main_led)
 
     def stop(self):
         self.running = False
         if self.socket:
             self.socket.close()
-        udpLed.off()
 
     def handle_client(self, pwm_motors):
         while self.running:
@@ -294,7 +287,7 @@ class UDPServer:
                 data, addr = self.socket.recvfrom(1024)
                 if not data:
                     continue
-
+                
                 # Update client address if it changed
                 if self.client_address != addr:
                     if self.client_address:
@@ -302,7 +295,6 @@ class UDPServer:
                     else:
                         print(f'UDP client connected from {addr}')
                     self.client_address = addr
-                    udpLed.on()
 
                 try:
                     command = json.loads(data)
@@ -311,21 +303,17 @@ class UDPServer:
                         pwm_motors.set_powers(pwms)
                 except Exception as e:
                     print('Invalid UDP command:', e)
-                    udpErrorLed.on()
-                    time.sleep(0.1)
-                    udpErrorLed.off()
+                    blink_led(udp_error_led)
 
             except Exception as e:
                 print(f'UDP connection error: {e}')
                 self.client_address = None
-                udpLed.off()
-                udpErrorLed.on()
-                time.sleep(0.1)
-                udpErrorLed.off()
+                blink_led(udp_error_led)
 
 def start_servers(ip_address):
     """Start both TCP and UDP servers"""
     # Initialize controllers
+    blink_led(main_led, 1)
     pwm_motors = MotorController([motor0, motor1, motor2, motor3])
     imu = None  # MPU6050()
     
@@ -338,7 +326,6 @@ def start_servers(ip_address):
     udp_server.start()
 
     try:
-
         # Start UDP server in a separate thread
         _thread.start_new_thread(udp_server.handle_client, (pwm_motors,))
         # Run TCP server in main thread
@@ -357,11 +344,9 @@ def main(use_AP=True):
     else:
         wlan = connect_wifi()
         ip_address = wlan.ifconfig()[0]
-        
+
     start_servers(ip_address)
     print('Servers stopped')
 
 if __name__ == '__main__':
     main(USE_AP_MODE) 
-
-
