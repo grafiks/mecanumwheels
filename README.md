@@ -35,16 +35,16 @@
 * Install more sensors and program your own controllers!
 
 # Main Idea
-# Pico as the nerves
+## Pico as the nerves
 * Pico 2W runs 2 threads, one to handle TCP connections and the other for UDP via WiFi.
 * TCP simulates the sensors telemetry data bus, which reliably can be pulled and provides sensor data.
 * UDP simulates the fire-and-forget command bus, which is fast but not reliable.
-# Java app as the brain
+## Java app as the brain
 * Now the [KeyboardController](picow/java/src/main/java/com/picow/controller/KeyboardController.java) can do all the moves described at https://en.wikipedia.org/wiki/Mecanum_wheel.
 * Write your own controller from the [base class](picow/java/src/main/java/com/picow/controller/ControllerBase.java), e.g. 
-- A gamepad controller
-- An autonomous driving controller reads IMU data and navigates the robot.
-- An anti-collision controller reads light sensor or sonar data to brake the robot at emergency.
+  - A gamepad controller
+  - An autonomous driving controller reads IMU data and navigates the robot.
+  - An anti-collision controller reads light sensor or sonar data to brake the robot at emergency.
 * Set the priority of your controller in [MotorCommandBus.java](picow/java/src/main/java/com/picow/model/MotorCommandBus.java)
 * Logs avaiable for analysis.
 
