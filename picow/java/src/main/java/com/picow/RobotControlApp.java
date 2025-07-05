@@ -8,8 +8,8 @@ import com.picow.ui.MainWindow;
 public class RobotControlApp {
     private static final int TCP_PORT = 8080;
     private static final int UDP_PORT = 8081;
-    //private static final String SERVER_IP = "192.168.4.1"; // Default IP for Pico W in Access Point mode
-    private static final String SERVER_IP = "192.168.1.66";  // Change this to your server's IP address in your wifi network
+    private static final String SERVER_IP = "192.168.4.1"; // Default IP for Pico W in Access Point mode
+    //private static final String SERVER_IP = "192.168.1.66";  // Change this to your server's IP address in your wifi network
 
     public static void main(String[] args) {
         try {

@@ -7,7 +7,7 @@ import network
 from machine import Pin, PWM, I2C
 
 # WiFi credentials
-WIFI_SSID = "irene-robot-wifi"
+WIFI_SSID = "swimming-robot-wifi"
 WIFI_PASSWORD = '12345678'
 SHARED_WIFI_PASSWORD = ""
 SHARED_WIFI_SSID = ""
