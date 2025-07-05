@@ -31,7 +31,12 @@
 ## Run Java control programs
 * Use your IDE, open the [pom.xml](picow/java/pom.xml)
 * Compile and run
-* Use the combination of WASD for sliding, left/right arrows for rotations, and up/down for speed controls.
+* **Keyboard Control**: Use the combination of WASD for sliding, left/right arrows for rotations, and up/down for speed controls.
+* **Xbox Controller** (only supported on Windows-x64 for now): 
+  - Left stick: Translation (forward/backward + strafe left/right)
+  - Right stick: Rotation  
+  - Triggers: Speed control
+  - See [GAMEPAD_README.md](GAMEPAD_README.md) for detailed setup and usage
 * Install more sensors and program your own controllers!
 
 # Main Idea
@@ -40,12 +45,13 @@
 * TCP simulates the sensors telemetry data bus, which reliably can be pulled and provides sensor data.
 * UDP simulates the fire-and-forget command bus, which is fast but not reliable.
 ## Java app as the brain
-* Now the [KeyboardController](picow/java/src/main/java/com/picow/controller/KeyboardController.java) can do all the moves described at https://en.wikipedia.org/wiki/Mecanum_wheel.
+* Now supports multiple control methods:
+  - [KeyboardController](picow/java/src/main/java/com/picow/controller/KeyboardController.java) - Full mecanum wheel movement support
+  - [GamepadController](picow/java/src/main/java/com/picow/controller/GamepadController.java) - Xbox controller support with analog precision *(NEW!)*
 * Write your own controller from the [base class](picow/java/src/main/java/com/picow/controller/ControllerBase.java), e.g. 
-  - A gamepad controller
   - An autonomous driving controller reads IMU data and navigates the robot.
   - An anti-collision controller reads light sensor or sonar data to brake the robot at emergency.
 * Set the priority of your controller in [MotorCommandBus.java](picow/java/src/main/java/com/picow/model/MotorCommandBus.java)
-* Logs avaiable for analysis.
+* Logs available for analysis.
 
 

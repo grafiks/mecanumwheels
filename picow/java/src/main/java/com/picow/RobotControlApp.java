@@ -1,6 +1,7 @@
 package com.picow;
 
 import com.picow.controller.KeyboardController;
+import com.picow.controller.GamepadController;
 import com.picow.model.RobotFactory;
 import com.picow.model.RobotModel;
 import com.picow.ui.MainWindow;
@@ -26,6 +27,7 @@ public class RobotControlApp {
 
             // Create controllers
             KeyboardController keyboardController = new KeyboardController(robot, mainWindow, 20);
+            GamepadController gamepadController = new GamepadController(robot, 20);
             
             // Set up window closing handler
             mainWindow.setFocusable(true);  // Ensure window can receive focus
@@ -35,6 +37,7 @@ public class RobotControlApp {
                
             mainWindow.setWindowClosingHandler(e -> {
                 keyboardController.stop();
+                gamepadController.stop();
                 try {
                     robot.stop();
                 } catch (Exception ex) {
@@ -46,6 +49,21 @@ public class RobotControlApp {
             // Start robot and controllers
             robot.start();
             keyboardController.start();
+            
+            // Start gamepad controller (may not connect if no controller found)
+            gamepadController.start();
+            
+            // Print gamepad status
+            System.out.println("=== Controller Status ===");
+            System.out.println("Keyboard controller: Active");
+            System.out.println("Gamepad connected: " + gamepadController.isConnected());
+            if (gamepadController.isConnected()) {
+                System.out.println("Gamepad: " + gamepadController.getControllerName());
+                System.out.println("Note: Gamepad has higher priority than keyboard");
+            } else {
+                System.out.println("Gamepad: Not connected - using keyboard only");
+            }
+            System.out.println("=========================");
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
