@@ -288,7 +288,6 @@ public class KeyboardController extends ControllerBase {
             case IDLE:
                 // Send clear command to remove this controller from the command bus
                 robot.clearMotorCommands(name);
-                System.out.println("DEBUG: KeyboardController IDLE - cleared command from bus");
                 // Stay in IDLE state
                 break;
                 
@@ -296,15 +295,12 @@ public class KeyboardController extends ControllerBase {
                 // Send the current movement command
                 int[] powers = decodeMotorPowerBits(encodedPowers);
                 robot.setMotorPowers(new double[]{powers[0], powers[1], powers[2], powers[3]}, name);
-                System.out.println("DEBUG: KeyboardController KEYPRESSED - sending command: [" + 
-                    powers[0] + ", " + powers[1] + ", " + powers[2] + ", " + powers[3] + "]");
                 // Stay in KEYPRESSED state (until updateMotors changes it)
                 break;
                 
             case STOPPRESSED:
                 // Send stop command
                 robot.setMotorPowers(new double[]{0, 0, 0, 0}, name);
-                System.out.println("DEBUG: KeyboardController STOPPRESSED - sending STOP command: [0, 0, 0, 0]");
                 // Transition to IDLE
                 currentState = KeyboardState.IDLE;
                 break;
@@ -312,7 +308,6 @@ public class KeyboardController extends ControllerBase {
             case KEYRELEASED:
                 // Send stop command to stop the robot immediately
                 robot.setMotorPowers(new double[]{0, 0, 0, 0}, name);
-                System.out.println("DEBUG: KeyboardController KEYRELEASED - sending STOP command: [0, 0, 0, 0]");
                 // Transition to IDLE
                 currentState = KeyboardState.IDLE;
                 break;

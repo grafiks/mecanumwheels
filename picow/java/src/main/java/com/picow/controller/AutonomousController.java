@@ -37,8 +37,6 @@ public class AutonomousController extends ControllerBase {
             return;
         }
         
-        // DEBUG: Show that we're executing
-        System.out.println("DEBUG: AutonomousController.takeActions() - executing sequence");
         executeCurrentSequence();
     }
     
@@ -78,9 +76,6 @@ public class AutonomousController extends ControllerBase {
         encodedPowers = encodeMotorPowerBits(speeds[0], speeds[1], speeds[2], speeds[3]);
         int[] powers = decodeMotorPowerBits(encodedPowers);
         
-        // DEBUG: Print what we're sending
-        System.out.println("DEBUG: Sending powers [" + powers[0] + ", " + powers[1] + ", " + powers[2] + ", " + powers[3] + "] for step: " + currentStep.action);
-        
         robot.setMotorPowers(new double[]{powers[0], powers[1], powers[2], powers[3]}, name);
     }
     
@@ -106,10 +101,10 @@ public class AutonomousController extends ControllerBase {
     }
     
     private void loadDemoRoute() {
-        // Add sequence steps: FORWARD 600ms, PAUSE 2000ms, TURN LEFT 400ms, FORWARD 1000ms, STOP
+        // Add sequence steps: FORWARD 600ms, PAUSE 1000ms, LEFT 1000ms, FORWARD 1000ms, STOP
         currentSequence.add(new SequenceStep("FORWARD", 600, new double[]{100, 100, 100, 100}));
-        currentSequence.add(new SequenceStep("PAUSE", 2000, new double[]{0, 0, 0, 0}));
-        currentSequence.add(new SequenceStep("TURN_LEFT", 400, new double[]{-50, 50, -50, 50}));
+        currentSequence.add(new SequenceStep("PAUSE", 1000, new double[]{0, 0, 0, 0}));
+        currentSequence.add(new SequenceStep("LEFT", 1000, new double[]{-100, 100, 100, -100}));
         currentSequence.add(new SequenceStep("FORWARD", 1000, new double[]{100, 100, 100, 100}));
         currentSequence.add(new SequenceStep("STOP", 0, new double[]{0, 0, 0, 0}));
         
