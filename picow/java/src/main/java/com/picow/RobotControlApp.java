@@ -1,5 +1,6 @@
 package com.picow;
 
+import com.picow.controller.AutonomousController;
 import com.picow.controller.KeyboardController;
 import com.picow.model.RobotFactory;
 import com.picow.model.RobotModel;
@@ -25,7 +26,8 @@ public class RobotControlApp {
             }
 
             // Create controllers
-            KeyboardController keyboardController = new KeyboardController(robot, mainWindow, 20);
+            AutonomousController autonomousController = new AutonomousController(robot, 50); // 50Hz for precise timing
+            KeyboardController keyboardController = new KeyboardController(robot, mainWindow, 20, autonomousController);
             
             // Set up window closing handler
             mainWindow.setFocusable(true);  // Ensure window can receive focus
@@ -34,7 +36,9 @@ public class RobotControlApp {
             mainWindow.setVisible(true);
                
             mainWindow.setWindowClosingHandler(e -> {
+                System.out.println("Shutting down controllers...");
                 keyboardController.stop();
+                autonomousController.stop();
                 try {
                     robot.stop();
                 } catch (Exception ex) {
@@ -44,8 +48,12 @@ public class RobotControlApp {
             });
 
             // Start robot and controllers
+            System.out.println("Starting robot and controllers...");
             robot.start();
             keyboardController.start();
+            autonomousController.start();
+            
+            System.out.println("System ready! Press 'R' to start autonomous sequence.");
 
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());

@@ -172,4 +172,8 @@ public class RobotModel {
         MotorCommand command = new MotorCommand(pwm, System.currentTimeMillis());
         commandBus.updateCommand(controller, command);
     }
+    
+    public void clearMotorCommands(String controller) {
+        commandBus.clearCommand(controller, null);
+    }
 }
