@@ -41,6 +41,7 @@
 * UDP simulates the fire-and-forget command bus, which is fast but not reliable.
 ## Java app as the brain
 * Now the [KeyboardController](picow/java/src/main/java/com/picow/controller/KeyboardController.java) can do all the moves described at https://en.wikipedia.org/wiki/Mecanum_wheel.
+* The [AutonomousController](picow/java/src/main/java/com/picow/controller/AutonomousController.java) enables automated movement sequences with manual override and emergency stop capabilities. See [detailed documentation](picow/java/AUTONOMOUS_CONTROLLER.md).
 * Write your own controller from the [base class](picow/java/src/main/java/com/picow/controller/ControllerBase.java), e.g. 
   - A gamepad controller
   - An autonomous driving controller reads IMU data and navigates the robot.
